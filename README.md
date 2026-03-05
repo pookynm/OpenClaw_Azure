@@ -1,6 +1,6 @@
 # OpenClaw on Azure (1-click VM deploy)
 
-This repo deploys an Ubuntu VM on Azure **and installs + starts OpenClaw** preconfigured to use an **Azure AI Foundry / Azure OpenAI (Responses API compatible)** endpoint.
+This repo deploys an Ubuntu VM on Azure **and installs + starts OpenClaw** preconfigured to use an **Azure AI Foundry (ex Azure AI Studio) endpoint that is OpenAI Responses compatible**.
 
 ## 1‑click deploy
 
@@ -26,4 +26,5 @@ After deployment, check the ARM outputs for:
 
 - OpenClaw is installed via the official installer (`https://openclaw.ai/install.sh`).
 - The OpenClaw config is written to `~/.openclaw/openclaw.json` on the VM.
-- The selected model uses provider `azure-openai-responses/<modelId>` and maps to your Azure deployment name via `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`.
+- The selected model uses provider `azure-openai-responses/<modelId>` and maps to your deployment name via `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`.
+- You must provide the **endpoint base URL** in the deployment parameters (Foundry / Azure OpenAI compatible). Example formats vary by your setup.

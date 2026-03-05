@@ -12,7 +12,7 @@
     "openclawGatewayToken": { "value": "CHANGE_ME_STRONG_RANDOM" },
 
     "azureOpenAiApiKey": { "value": "CHANGE_ME" },
-    "azureOpenAiBaseUrl": { "value": "https://<resource>.openai.azure.com/openai/v1" },
+    "azureOpenAiBaseUrl": { "value": "https://<your-endpoint>/openai/v1" },
     "azureOpenAiResourceName": { "value": "" },
     "azureOpenAiApiVersion": { "value": "v1" },
     "modelId": { "value": "gpt-4o" },

@@ -43,15 +43,15 @@
     },
     "azureOpenAiBaseUrl": {
       "type": "string",
-      "defaultValue": "",
+      "minLength": 1,
       "metadata": {
-        "description": "Azure OpenAI base URL (optional). Example: https://<resource>.openai.azure.com/openai/v1 (leave empty if using resourceName)"
+        "description": "FOUNDY / Azure OpenAI compatible base URL (required). Example (Azure OpenAI): https://<resource>.openai.azure.com/openai/v1"
       }
     },
     "azureOpenAiResourceName": {
       "type": "string",
       "defaultValue": "",
-      "metadata": { "description": "Azure OpenAI resource name (optional if baseUrl is provided)" }
+      "metadata": { "description": "Optional: Azure OpenAI resource name (not needed if you provide baseUrl)" }
     },
     "azureOpenAiApiVersion": {
       "type": "string",
