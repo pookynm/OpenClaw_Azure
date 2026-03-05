@@ -1,0 +1,242 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": { "description": "Azure region" }
+    },
+    "vmName": {
+      "type": "string",
+      "defaultValue": "openclaw-vm",
+      "metadata": { "description": "VM name" }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_B2s",
+      "metadata": { "description": "VM size" }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "azureuser",
+      "metadata": { "description": "Admin username" }
+    },
+    "sshPublicKey": {
+      "type": "string",
+      "metadata": { "description": "SSH public key (ssh-rsa/ed25519...)" }
+    },
+    "allowedInboundIp": {
+      "type": "string",
+      "defaultValue": "0.0.0.0/0",
+      "metadata": { "description": "CIDR allowed to reach SSH + OpenClaw ports (recommended: your public IP/32)" }
+    },
+
+    "openclawGatewayToken": {
+      "type": "secureString",
+      "metadata": { "description": "OpenClaw gateway auth token (choose a strong random string)" }
+    },
+
+    "azureOpenAiApiKey": {
+      "type": "secureString",
+      "metadata": { "description": "Azure AI Foundry / Azure OpenAI API key" }
+    },
+    "azureOpenAiBaseUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure OpenAI base URL (optional). Example: https://<resource>.openai.azure.com/openai/v1 (leave empty if using resourceName)"
+      }
+    },
+    "azureOpenAiResourceName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Azure OpenAI resource name (optional if baseUrl is provided)" }
+    },
+    "azureOpenAiApiVersion": {
+      "type": "string",
+      "defaultValue": "v1",
+      "metadata": { "description": "Azure OpenAI API version for Responses API (default: v1)" }
+    },
+    "modelId": {
+      "type": "string",
+      "defaultValue": "gpt-4o",
+      "metadata": { "description": "OpenClaw model id (used in provider ref azure-openai-responses/<modelId>)" }
+    },
+    "deploymentName": {
+      "type": "string",
+      "metadata": { "description": "Azure deployment name that serves the model" }
+    }
+  },
+  "variables": {
+    "vnetName": "[concat(parameters('vmName'), '-vnet')]",
+    "subnetName": "default",
+    "nsgName": "[concat(parameters('vmName'), '-nsg')]",
+    "publicIpName": "[concat(parameters('vmName'), '-pip')]",
+    "nicName": "[concat(parameters('vmName'), '-nic')]",
+    "ipConfigName": "ipconfig1",
+
+    "gatewayPort": 18789,
+    "dashboardPort": 18790,
+
+    "cloudInit": "[format('#cloud-config\npackage_update: true\npackages:\n  - ca-certificates\n  - curl\n  - git\n  - jq\nwrite_files:\n  - path: /home/{0}/.openclaw/openclaw.json\n    owner: {0}:{0}\n    permissions: \'0600\'\n    content: |\n      {{\n        env: {{\n          AZURE_OPENAI_API_KEY: \"{1}\",\n          AZURE_OPENAI_API_VERSION: \"{2}\",\n          AZURE_OPENAI_BASE_URL: \"{3}\",\n          AZURE_OPENAI_RESOURCE_NAME: \"{4}\",\n          AZURE_OPENAI_DEPLOYMENT_NAME_MAP: \"{5}={6}\"\n        }},\n        agents: {{\n          defaults: {{\n            model: {{ primary: \"azure-openai-responses/{5}\" }}\n          }}\n        }},\n        gateway: {{\n          mode: \"local\",\n          bind: \"0.0.0.0\",\n          port: {7},\n          auth: {{ token: \"{8}\" }}\n        }}\n      }}\nruncmd:\n  - [ bash, -lc, \"set -euo pipefail; mkdir -p /home/{0}/.openclaw; chown -R {0}:{0} /home/{0}/.openclaw\" ]\n  - [ bash, -lc, \"set -euo pipefail; curl -fsSL https://openclaw.ai/install.sh | bash\" ]\n  - [ bash, -lc, \"set -euo pipefail; su - {0} -c \'openclaw gateway install --port {7} --token \"{8}\" --force\'\" ]\n  - [ bash, -lc, \"set -euo pipefail; su - {0} -c \'openclaw gateway start\'\" ]\nfinal_message: \"OpenClaw installed and gateway started.\"\n', parameters('adminUsername'), parameters('azureOpenAiApiKey'), parameters('azureOpenAiApiVersion'), parameters('azureOpenAiBaseUrl'), parameters('azureOpenAiResourceName'), parameters('modelId'), parameters('deploymentName'), variables('gatewayPort'), parameters('openclawGatewayToken'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": { "addressPrefixes": ["10.0.0.0/16"] },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": { "addressPrefix": "10.0.0.0/24", "networkSecurityGroup": { "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]" } }
+          }
+        ]
+      },
+      "dependsOn": ["[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "Allow-SSH",
+            "properties": {
+              "priority": 1000,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "[parameters('allowedInboundIp')]",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "22"
+            }
+          },
+          {
+            "name": "Allow-OpenClaw-Gateway",
+            "properties": {
+              "priority": 1010,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "[parameters('allowedInboundIp')]",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "[string(variables('gatewayPort'))]"
+            }
+          },
+          {
+            "name": "Allow-OpenClaw-Dashboard",
+            "properties": {
+              "priority": 1020,
+              "protocol": "Tcp",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "[parameters('allowedInboundIp')]",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "[string(variables('dashboardPort'))]"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('publicIpName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "dnsSettings": { "domainNameLabel": "[toLower(concat(parameters('vmName'), uniqueString(resourceGroup().id)))]" }
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('nicName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "[variables('ipConfigName')]",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": { "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))]" },
+              "subnet": { "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetName'))]" }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2023-09-01",
+      "name": "[parameters('vmName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "hardwareProfile": { "vmSize": "[parameters('vmSize')]" },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "Canonical",
+            "offer": "0001-com-ubuntu-server-jammy",
+            "sku": "22_04-lts",
+            "version": "latest"
+          },
+          "osDisk": { "createOption": "FromImage" }
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "customData": "[base64(variables('cloudInit'))]",
+          "linuxConfiguration": {
+            "disablePasswordAuthentication": true,
+            "ssh": {
+              "publicKeys": [
+                {
+                  "path": "[format('/home/{0}/.ssh/authorized_keys', parameters('adminUsername'))]",
+                  "keyData": "[parameters('sshPublicKey')]"
+                }
+              ]
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            { "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]" }
+          ]
+        }
+      },
+      "dependsOn": ["[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"]
+    }
+  ],
+  "outputs": {
+    "publicIp": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))).ipAddress]"
+    },
+    "sshCommand": {
+      "type": "string",
+      "value": "[format('ssh {0}@{1}', parameters('adminUsername'), reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))).ipAddress)]"
+    },
+    "dashboardUrl": {
+      "type": "string",
+      "value": "[format('http://{0}:{1}', reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))).ipAddress, variables('dashboardPort'))]"
+    },
+    "gatewayWsUrl": {
+      "type": "string",
+      "value": "[format('ws://{0}:{1}', reference(resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))).ipAddress, variables('gatewayPort'))]"
+    }
+  }
+}

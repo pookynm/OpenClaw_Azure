@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "value": "eastus" },
+    "vmName": { "value": "openclaw-vm" },
+    "vmSize": { "value": "Standard_B2s" },
+    "adminUsername": { "value": "azureuser" },
+    "sshPublicKey": { "value": "ssh-ed25519 AAAA..." },
+    "allowedInboundIp": { "value": "203.0.113.10/32" },
+
+    "openclawGatewayToken": { "value": "CHANGE_ME_STRONG_RANDOM" },
+
+    "azureOpenAiApiKey": { "value": "CHANGE_ME" },
+    "azureOpenAiBaseUrl": { "value": "https://<resource>.openai.azure.com/openai/v1" },
+    "azureOpenAiResourceName": { "value": "" },
+    "azureOpenAiApiVersion": { "value": "v1" },
+    "modelId": { "value": "gpt-4o" },
+    "deploymentName": { "value": "my-gpt4o-deployment" }
+  }
+}
