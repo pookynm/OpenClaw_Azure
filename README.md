@@ -6,7 +6,7 @@ This repo deploys an Ubuntu VM on Azure **and installs + starts OpenClaw** preco
 
 > You will be prompted for the required variables (SSH key, OpenClaw gateway token, Azure Foundry/OpenAI endpoint + key, model/deployment name, etc.).
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fpookynm%2FOpenClaw_Azure%2Fmain%2Fazuredeploy.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fpookynm%2FOpenClaw_Azure%2Fmain%2Fazuredeploy.json%3Fv%3Dcb02954)
 
 ## What you get
 
